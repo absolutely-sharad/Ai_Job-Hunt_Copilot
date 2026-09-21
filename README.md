@@ -217,4 +217,3 @@ tests/             24 tests, no API key required
 ## License
 
 MIT — see [LICENSE](LICENSE).
-# Ai_Job_Copilot
