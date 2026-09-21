@@ -1,0 +1,18 @@
+[project]
+name = "ai-jobhunt-copilot"
+version = "1.0.0"
+description = "RAG + agentic AI copilot that tailors resumes, cover letters, and interview prep to a job description."
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+filterwarnings = ["ignore::DeprecationWarning"]

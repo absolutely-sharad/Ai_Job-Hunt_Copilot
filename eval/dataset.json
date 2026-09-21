@@ -1,0 +1,76 @@
+{
+  "corpus": [
+    {
+      "id": "copilot",
+      "title": "AI Job-Hunt Copilot",
+      "kind": "project",
+      "content": "Built a production RAG pipeline in Python using ChromaDB for vector storage and Gemini text-embedding-004 for embeddings. Implemented MMR re-ranking to remove near-duplicate evidence and a deterministic grounding critic that rejects any generated resume bullet citing no retrieved chunk.\n\nOrchestrated a multi-step agent workflow with LangGraph state machines: job-description parsing, requirement-level retrieval, match analysis, drafting, and self-correction. Served the pipeline through a FastAPI application with structured logging and rate limiting."
+    },
+    {
+      "id": "infonix",
+      "title": "Infonix Cloud",
+      "kind": "experience",
+      "content": "Co-founded a software company delivering production web and mobile applications to 60+ business clients using React.js, Node.js, Laravel, and Flutter.\n\nDesigned and deployed AI chatbots and automation agents that handle customer support, lead qualification, and follow-up workflows. Built custom ERP and CRM platforms backed by MySQL and MongoDB with role-based access control."
+    },
+    {
+      "id": "gemini-chat",
+      "title": "Gemini Pro Chat Application",
+      "kind": "project",
+      "content": "Developed a real-time LLM chat application with Streamlit and the Google Gemini API, featuring streaming responses, persistent session history, and Markdown rendering. Implemented secure API key handling, session state management, and retry-based error handling in Python."
+    },
+    {
+      "id": "pgt",
+      "title": "PGT Global Network Internship",
+      "kind": "experience",
+      "content": "Built a full-stack web portal using React.js, TypeScript, Tailwind CSS, and Supabase with authentication. Developed REST APIs, relational data models, and reusable modular components for profiles, blogs, and user activity feeds."
+    },
+    {
+      "id": "finance",
+      "title": "Finance Tracker App",
+      "kind": "project",
+      "content": "Developed a full-stack finance tracker with React, Node.js, and Supabase. Built dynamic dashboards using Recharts for income, expense, and category analysis, with Context API and custom hooks for scalable state management."
+    },
+    {
+      "id": "classplus",
+      "title": "Classplus Internship",
+      "kind": "experience",
+      "content": "Led on-ground execution of a national techpreneurship competition across 150+ schools, coordinating with principals and running technical interviews at the national round."
+    }
+  ],
+  "queries": [
+    {
+      "query": "retrieval augmented generation with vector databases",
+      "relevant_document_titles": ["AI Job-Hunt Copilot"]
+    },
+    {
+      "query": "agent orchestration and multi-step LLM workflows",
+      "relevant_document_titles": ["AI Job-Hunt Copilot"]
+    },
+    {
+      "query": "React frontend development with TypeScript",
+      "relevant_document_titles": ["PGT Global Network Internship", "Finance Tracker App"]
+    },
+    {
+      "query": "building REST APIs and backend services",
+      "relevant_document_titles": ["PGT Global Network Internship", "AI Job-Hunt Copilot"]
+    },
+    {
+      "query": "AI chatbots for customer support automation",
+      "relevant_document_titles": ["Infonix Cloud", "Gemini Pro Chat Application"]
+    },
+    {
+      "query": "founding a company and delivering client projects",
+      "relevant_document_titles": ["Infonix Cloud"]
+    }
+  ],
+  "job_descriptions": [
+    {
+      "name": "ai_ml_engineer",
+      "text": "We are hiring an AI/ML Engineer to build retrieval-augmented generation systems in production. You will design agentic pipelines, own retrieval quality and evaluation, and ship LLM-powered features to real users. Required: strong Python, RAG architectures, vector databases, API design with FastAPI. Preferred: LangGraph or similar orchestration frameworks, PyTorch, and experience with evaluation harnesses."
+    },
+    {
+      "name": "full_stack_engineer",
+      "text": "Looking for a Full-Stack Engineer to build customer-facing web applications. You will own features end to end across a React and TypeScript frontend and a Node.js backend, working with relational databases and REST APIs. Required: React, TypeScript, Node.js, SQL. Preferred: experience shipping products to production clients and integrating third-party APIs."
+    }
+  ]
+}

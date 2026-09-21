@@ -1,0 +1,16 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+      - ENVIRONMENT=local
+      - CHROMA_PATH=/srv/data/chroma
+      - DATABASE_URL=sqlite:////srv/data/copilot.db
+    volumes:
+      - copilot-data:/srv/data
+
+volumes:
+  copilot-data:

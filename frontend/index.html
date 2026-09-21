@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Job-Hunt Copilot</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .card { border: 1px solid rgb(228 228 231); border-radius: 0.75rem; background: white; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #09090b; color: #e4e4e7; }
+    .card { background: #18181b; border-color: #27272a; }
+    textarea, input, select { background: #09090b !important; color: #e4e4e7 !important;
+      border-color: #3f3f46 !important; }
+  }
+</style>
+</head>
+<body class="min-h-full bg-zinc-50 text-zinc-900">
+<div class="mx-auto max-w-5xl px-4 py-8">
+
+  <header class="mb-8">
+    <h1 class="text-2xl font-semibold tracking-tight">AI Job-Hunt Copilot</h1>
+    <p class="mt-1 text-sm text-zinc-500">
+      RAG + agentic pipeline. Every generated bullet is traceable to evidence from your own
+      indexed experience.
+    </p>
+  </header>
+
+  <!-- Step 1: corpus -->
+  <section class="card mb-6 p-5">
+    <div class="flex items-center justify-between">
+      <h2 class="font-medium">1. Your experience corpus</h2>
+      <span id="doc-count" class="text-xs text-zinc-500">loading…</span>
+    </div>
+    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+      <input id="doc-title" placeholder="Title (e.g. Infonix Cloud)"
+             class="rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
+      <select id="doc-kind" class="rounded-lg border border-zinc-300 px-3 py-2 text-sm">
+        <option value="resume">Resume</option>
+        <option value="project" selected>Project</option>
+        <option value="experience">Experience</option>
+        <option value="education">Education</option>
+        <option value="note">Note</option>
+      </select>
+    </div>
+    <textarea id="doc-content" rows="5" placeholder="Paste the raw text — what you built, the stack, outcomes…"
+              class="mt-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"></textarea>
+    <div class="mt-3 flex flex-wrap items-center gap-3">
+      <button id="add-doc" class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white
+              hover:bg-zinc-700 disabled:opacity-50">Index document</button>
+      <label class="cursor-pointer text-sm text-zinc-600 underline">
+        or upload PDF/DOCX
+        <input id="file-input" type="file" accept=".pdf,.docx,.txt,.md" class="hidden" />
+      </label>
+    </div>
+    <ul id="doc-list" class="mt-4 space-y-2 text-sm"></ul>
+  </section>
+
+  <!-- Step 2: JD -->
+  <section class="card mb-6 p-5">
+    <h2 class="font-medium">2. Target job description</h2>
+    <textarea id="jd" rows="7" placeholder="Paste the full job posting…"
+              class="mt-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"></textarea>
+    <div class="mt-3 flex items-center gap-3">
+      <select id="tone" class="rounded-lg border border-zinc-300 px-3 py-2 text-sm">
+        <option value="professional">Professional</option>
+        <option value="concise">Concise</option>
+        <option value="enthusiastic">Enthusiastic</option>
+      </select>
+      <button id="run" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white
+              hover:bg-blue-500 disabled:opacity-50">Tailor my application</button>
+      <span id="status" class="text-sm text-zinc-500"></span>
+    </div>
+  </section>
+
+  <div id="results" class="space-y-6"></div>
+</div>
+
+<script>
+const API = "/api/v1";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function api(path, options = {}) {
+  const response = await fetch(API + path, {
+    headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
+    ...options,
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.error?.message || `Request failed (${response.status})`);
+  }
+  return response.status === 204 ? null : response.json();
+}
+
+async function loadDocuments() {
+  try {
+    const documents = await api("/profile/documents");
+    $("doc-count").textContent = `${documents.length} document(s) indexed`;
+    $("doc-list").innerHTML = documents.map((d) => `
+      <li class="flex items-center justify-between rounded-lg bg-zinc-100 px-3 py-2 dark:bg-zinc-800">
+        <span><strong>${esc(d.title)}</strong>
+          <span class="text-zinc-500">· ${esc(d.kind)} · ${d.chunk_count} chunks</span></span>
+        <button data-id="${esc(d.id)}" class="del text-xs text-red-600 hover:underline">remove</button>
+      </li>`).join("");
+    document.querySelectorAll(".del").forEach((button) =>
+      button.addEventListener("click", async () => {
+        await api(`/profile/documents/${button.dataset.id}`, { method: "DELETE" });
+        loadDocuments();
+      }));
+  } catch (error) { $("doc-count").textContent = error.message; }
+}
+
+$("add-doc").addEventListener("click", async () => {
+  const content = $("doc-content").value.trim();
+  if (content.length < 20) return alert("Add at least a couple of sentences.");
+  $("add-doc").disabled = true;
+  try {
+    await api("/profile/documents", {
+      method: "POST",
+      body: JSON.stringify({
+        title: $("doc-title").value.trim() || "Untitled",
+        kind: $("doc-kind").value,
+        content,
+      }),
+    });
+    $("doc-content").value = ""; $("doc-title").value = "";
+    loadDocuments();
+  } catch (error) { alert(error.message); } finally { $("add-doc").disabled = false; }
+});
+
+$("file-input").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append("file", file);
+  form.append("kind", $("doc-kind").value);
+  try {
+    await api("/profile/documents/upload", { method: "POST", body: form });
+    loadDocuments();
+  } catch (error) { alert(error.message); }
+  event.target.value = "";
+});
+
+$("run").addEventListener("click", async () => {
+  const jd = $("jd").value.trim();
+  if (jd.length < 50) return alert("Paste the full job description.");
+  $("run").disabled = true;
+  $("status").textContent = "Parsing, retrieving, drafting, verifying…";
+  $("results").innerHTML = "";
+  try {
+    const result = await api("/tailor", {
+      method: "POST",
+      body: JSON.stringify({ job_description: jd, tone: $("tone").value }),
+    });
+    render(result);
+    $("status").textContent = `Done in ${result.latency_ms} ms`;
+  } catch (error) {
+    $("status").textContent = "";
+    $("results").innerHTML =
+      `<div class="card border-red-300 p-4 text-sm text-red-600">${esc(error.message)}</div>`;
+  } finally { $("run").disabled = false; }
+});
+
+function render(result) {
+  const score = result.match_report.ats_score;
+  const colour = score >= 70 ? "bg-green-600" : score >= 45 ? "bg-amber-500" : "bg-red-500";
+  const section = (title, inner) =>
+    `<section class="card p-5"><h2 class="mb-3 font-medium">${title}</h2>${inner}</section>`;
+
+  const evidenceTags = (ids) => ids
+    .map((id) => `<code class="rounded bg-zinc-200 px-1 text-[11px] dark:bg-zinc-700">${esc(id)}</code>`)
+    .join(" ");
+
+  $("results").innerHTML = [
+    section(`Match · ${esc(result.job.title)} at ${esc(result.job.company)}`, `
+      <div class="mb-3 h-2 w-full rounded bg-zinc-200 dark:bg-zinc-700">
+        <div class="h-2 rounded ${colour}" style="width:${score}%"></div>
+      </div>
+      <p class="text-sm"><strong>ATS score ${score}/100.</strong> ${esc(result.match_report.summary)}</p>
+      <div class="mt-3 grid gap-4 sm:grid-cols-2 text-sm">
+        <div><p class="font-medium text-green-700">Matched</p><ul class="mt-1 list-disc pl-5">
+          ${result.match_report.matched.map((m) => `<li>${esc(m.skill)}</li>`).join("")}</ul></div>
+        <div><p class="font-medium text-red-600">Gaps</p><ul class="mt-1 list-disc pl-5">
+          ${result.match_report.gaps.map((g) => `<li>${esc(g.skill)}</li>`).join("")}</ul></div>
+      </div>`),
+
+    section("Tailored resume bullets", `<ul class="space-y-3 text-sm">
+      ${result.resume_bullets.map((b) => `<li class="border-l-2 border-blue-500 pl-3">
+        <p>${esc(b.text)}</p>
+        <p class="mt-1 text-xs text-zinc-500">→ ${esc(b.target_requirement)} · ${evidenceTags(b.evidence_ids)}</p>
+      </li>`).join("")}</ul>`),
+
+    result.cover_letter ? section("Cover letter",
+      `<pre class="whitespace-pre-wrap text-sm">${esc(result.cover_letter)}</pre>`) : "",
+
+    result.interview_questions.length ? section("Interview prep", `<ul class="space-y-3 text-sm">
+      ${result.interview_questions.map((q) => `<li>
+        <p class="font-medium">${esc(q.question)}</p>
+        <p class="mt-1 text-zinc-600 dark:text-zinc-400">${esc(q.star_answer)}</p>
+      </li>`).join("")}</ul>`) : "",
+
+    result.grounding_violations.length ? section("Rejected by grounding critic",
+      `<ul class="list-disc pl-5 text-sm text-amber-700">
+        ${result.grounding_violations.map((v) => `<li>${esc(v.bullet)} — ${esc(v.reason)}</li>`).join("")}
+      </ul>`) : "",
+  ].join("");
+}
+
+loadDocuments();
+</script>
+</body>
+</html>
