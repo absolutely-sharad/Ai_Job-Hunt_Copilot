@@ -16,15 +16,17 @@ from app.schemas.tailor import TailorRequest, TailorResponse
 from app.services.embeddings import get_embedder
 from app.services.llm import get_llm
 from app.services.retrieval import RetrievalService
-from app.services.vectorstore import VectorStore
+from app.services.vectorstore import SqlVectorStore, VectorStore, create_vector_store
 
 logger = get_logger(__name__)
 
 
 class CopilotService:
-    def __init__(self, settings: Settings | None = None, store: VectorStore | None = None):
+    def __init__(
+        self, settings: Settings | None = None, store: VectorStore | SqlVectorStore | None = None
+    ):
         self.settings = settings or get_settings()
-        self.store = store or VectorStore(self.settings)
+        self.store = store or create_vector_store(self.settings)
         self.llm = get_llm(self.settings)
         self.embedder = get_embedder(self.settings)
         self.retrieval = RetrievalService(self.store, self.embedder, self.settings)

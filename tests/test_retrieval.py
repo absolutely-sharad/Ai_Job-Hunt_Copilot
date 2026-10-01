@@ -66,3 +66,22 @@ def test_mmr_respects_top_k_and_empty_input():
 def test_empty_store_returns_no_results(store, embedder, settings):
     service = RetrievalService(store, embedder, settings)
     assert service.search("anything at all") == []
+
+
+def test_sql_vector_store_roundtrip(tmp_path):
+    from app.services.vectorstore import SqlVectorStore
+
+    store = SqlVectorStore()
+    store.reset()
+    store.upsert(
+        ["a", "b"],
+        [[1.0, 0.0], [0.0, 1.0]],
+        ["alpha", "beta"],
+        [{"document_id": "d1"}, {"document_id": "d2"}],
+    )
+    assert store.count() == 2
+    hits = store.query([1.0, 0.1], top_k=2)
+    assert [h["id"] for h in hits] == ["a", "b"]
+    store.delete_document("d1")
+    assert store.count() == 1
+    store.reset()

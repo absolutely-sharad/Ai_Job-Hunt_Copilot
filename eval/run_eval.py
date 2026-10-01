@@ -37,16 +37,14 @@ def build_index(dataset: dict, settings):
     from app.schemas.profile import DocumentIn
     from app.services.embeddings import get_embedder
     from app.services.ingestion import IngestionService
-    from app.services.vectorstore import VectorStore
+    from app.services.vectorstore import create_vector_store
 
-    store = VectorStore(settings)
+    store = create_vector_store(settings)
     store.reset()
     service = IngestionService(store, get_embedder(settings), settings)
     for document in dataset["corpus"]:
         service.ingest(
-            DocumentIn(
-                title=document["title"], kind=document["kind"], content=document["content"]
-            )
+            DocumentIn(title=document["title"], kind=document["kind"], content=document["content"])
         )
     return store
 
@@ -177,9 +175,7 @@ def main() -> int:
         "provider": settings.llm_provider,
         "embedding_model": settings.embedding_model,
         "retrieval": evaluate_retrieval(store, settings, dataset, args.top_k),
-        "generation": {}
-        if args.skip_generation
-        else evaluate_generation(store, settings, dataset),
+        "generation": {} if args.skip_generation else evaluate_generation(store, settings, dataset),
     }
     RESULTS_PATH.write_text(json.dumps(results, indent=2))
     print_report(results)

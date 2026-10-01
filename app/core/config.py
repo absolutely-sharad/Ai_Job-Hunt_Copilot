@@ -1,18 +1,20 @@
 """Application configuration loaded from environment variables."""
 
+import os
 from functools import lru_cache
 from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Vercel functions run on a read-only filesystem with only /tmp writable (and ephemeral).
+ON_VERCEL = bool(os.environ.get("VERCEL"))
+
 
 class Settings(BaseSettings):
     """Runtime settings. Override any field via environment variable."""
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # --- App ---
     app_name: str = "AI Job-Hunt Copilot"
@@ -36,9 +38,12 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 60.0
 
     # --- Storage ---
-    chroma_path: str = "./data/chroma"
+    # "chroma" = embedded ChromaDB (needs a persistent disk: Docker/Render).
+    # "sql"    = vectors stored in the app database (serverless-friendly, use Postgres).
+    vector_store: Literal["chroma", "sql"] = "sql" if ON_VERCEL else "chroma"
+    chroma_path: str = "/tmp/chroma" if ON_VERCEL else "./data/chroma"
     chroma_collection: str = "profile_chunks"
-    database_url: str = "sqlite:///./data/copilot.db"
+    database_url: str = "sqlite:////tmp/copilot.db" if ON_VERCEL else "sqlite:///./data/copilot.db"
 
     # --- Retrieval ---
     chunk_size: int = 900
@@ -55,6 +60,15 @@ class Settings(BaseSettings):
     # --- Rate limiting ---
     rate_limit_requests: int = 60
     rate_limit_window_seconds: int = 60
+
+    @property
+    def sqlalchemy_url(self) -> str:
+        """Normalize provider URLs (Neon/Supabase/Vercel Postgres) to the psycopg3 driver."""
+        url = self.database_url
+        for prefix in ("postgres://", "postgresql://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url[len(prefix) :]
+        return url
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -1,0 +1,3 @@
+# Optional embedded vector store (Docker/Render). Too large for Vercel's function bundle.
+-r requirements.txt
+chromadb==1.5.9

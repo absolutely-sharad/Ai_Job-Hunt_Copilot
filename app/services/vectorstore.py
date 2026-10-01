@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import logging
+import math
 import threading
 from typing import Any
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
+from sqlalchemy import delete, func, select
 
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger, log_event
@@ -25,6 +25,9 @@ class VectorStore:
 
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
+        import chromadb  # lazy: optional dependency, absent from serverless bundles
+        from chromadb.config import Settings as ChromaSettings
+
         self.client = chromadb.PersistentClient(
             path=self.settings.chroma_path,
             settings=ChromaSettings(anonymized_telemetry=False, allow_reset=True),
@@ -87,3 +90,97 @@ class VectorStore:
         self.collection = self.client.get_or_create_collection(
             name=self.settings.chroma_collection, metadata={"hnsw:space": "cosine"}
         )
+
+
+class SqlVectorStore:
+    """Vector store backed by the application database (SQLite or Postgres).
+
+    Cosine similarity is computed in-process over the candidate set. That is
+    exact and plenty fast for a personal profile corpus (hundreds of chunks),
+    and it removes the need for a persistent disk, which serverless lacks.
+    """
+
+    def __init__(self, settings: Settings | None = None):
+        from app.db.models import Base, ChunkRecord
+        from app.db.session import engine
+
+        self.settings = settings or get_settings()
+        self._model = ChunkRecord
+        self._engine = engine
+        Base.metadata.create_all(bind=engine, tables=[ChunkRecord.__table__])
+
+    def _session(self):
+        from app.db.session import session_scope
+
+        return session_scope()
+
+    def upsert(
+        self,
+        ids: list[str],
+        embeddings: list[list[float]],
+        documents: list[str],
+        metadatas: list[dict[str, Any]],
+    ) -> None:
+        if not ids:
+            return
+        with self._session() as session:
+            for chunk_id, embedding, text, meta in zip(
+                ids, embeddings, documents, metadatas, strict=True
+            ):
+                session.merge(
+                    self._model(
+                        id=chunk_id,
+                        document_id=str(meta.get("document_id", "")),
+                        text=text,
+                        chunk_metadata=meta,
+                        embedding=list(embedding),
+                        norm=math.sqrt(sum(v * v for v in embedding)) or 1.0,
+                    )
+                )
+        log_event(logger, logging.INFO, "vectorstore_upsert", chunks=len(ids))
+
+    def query(
+        self, embedding: list[float], top_k: int, where: dict | None = None
+    ) -> list[dict[str, Any]]:
+        """Return candidates ordered by cosine similarity."""
+        query_norm = math.sqrt(sum(v * v for v in embedding)) or 1.0
+        with self._session() as session:
+            stmt = select(self._model)
+            if where and "document_id" in where:
+                stmt = stmt.where(self._model.document_id == where["document_id"])
+            rows = session.execute(stmt).scalars().all()
+            scored = []
+            for row in rows:
+                dot = sum(a * b for a, b in zip(embedding, row.embedding, strict=False))
+                scored.append(
+                    {
+                        "id": row.id,
+                        "text": row.text,
+                        "metadata": dict(row.chunk_metadata),
+                        "score": dot / (query_norm * row.norm),
+                        "embedding": list(row.embedding),
+                    }
+                )
+        scored.sort(key=lambda hit: hit["score"], reverse=True)
+        return scored[:top_k]
+
+    def delete_document(self, document_id: str) -> None:
+        with self._session() as session:
+            session.execute(delete(self._model).where(self._model.document_id == document_id))
+        log_event(logger, logging.INFO, "vectorstore_delete", document_id=document_id)
+
+    def count(self) -> int:
+        with self._session() as session:
+            return session.execute(select(func.count()).select_from(self._model)).scalar_one()
+
+    def reset(self) -> None:
+        with self._session() as session:
+            session.execute(delete(self._model))
+
+
+def create_vector_store(settings: Settings | None = None) -> VectorStore | SqlVectorStore:
+    """Build the vector store selected by ``VECTOR_STORE``."""
+    settings = settings or get_settings()
+    if settings.vector_store == "sql":
+        return SqlVectorStore(settings)
+    return VectorStore(settings)
