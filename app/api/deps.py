@@ -11,7 +11,7 @@ from app.core.errors import AppError
 from app.services.copilot import CopilotService
 from app.services.embeddings import get_embedder
 from app.services.ingestion import IngestionService
-from app.services.vectorstore import VectorStore
+from app.services.vectorstore import SqlVectorStore, VectorStore, create_vector_store
 
 
 class UnauthorizedError(AppError):
@@ -20,8 +20,8 @@ class UnauthorizedError(AppError):
 
 
 @lru_cache
-def get_vector_store() -> VectorStore:
-    return VectorStore(get_settings())
+def get_vector_store() -> VectorStore | SqlVectorStore:
+    return create_vector_store(get_settings())
 
 
 @lru_cache

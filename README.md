@@ -217,3 +217,30 @@ tests/             24 tests, no API key required
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+## Deploy to Vercel
+
+The repo ships with `vercel.json` and an `api/index.py` ASGI entrypoint; the FastAPI app also serves
+the `frontend/` UI, so a single Vercel project hosts everything.
+
+1. **Create a Postgres database** (Neon / Supabase / Vercel Postgres). Serverless functions have an
+   ephemeral filesystem, so the vector index and run history live in the database
+   (`VECTOR_STORE=sql` is the automatic default on Vercel; ChromaDB is excluded from the bundle).
+2. **Import the repo** in Vercel (Framework preset: *Other*).
+3. **Set environment variables:**
+
+   | Variable | Value |
+   |---|---|
+   | `GOOGLE_API_KEY` | your Gemini key |
+   | `DATABASE_URL` | Postgres connection string (`postgres://…` is auto-normalized) |
+   | `API_KEY` | secret clients send as `X-API-Key` |
+   | `ENVIRONMENT` | `production` |
+   | `CORS_ORIGINS` | your frontend origin(s) |
+
+4. Deploy, then check `/healthz` and `/readyz`.
+
+Notes: the rate limiter is per-instance (in-memory); function `maxDuration` is 60s (raise on Pro if the
+pipeline needs longer). Without `DATABASE_URL` the app falls back to SQLite in `/tmp`, which resets on
+cold starts — fine for a demo only. For Docker/Render, `requirements-chroma.txt` adds embedded ChromaDB.

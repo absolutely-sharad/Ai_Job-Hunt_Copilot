@@ -8,8 +8,9 @@ from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
-from app.core.config import get_settings
+from app.core.config import ON_VERCEL, get_settings
 from app.db.models import Base
 
 _settings = get_settings()
@@ -17,12 +18,15 @@ _settings = get_settings()
 if _settings.database_url.startswith("sqlite:///./"):
     os.makedirs(os.path.dirname(_settings.database_url.replace("sqlite:///", "")), exist_ok=True)
 
+_url = _settings.sqlalchemy_url
+_is_sqlite = _url.startswith("sqlite")
+
 engine = create_engine(
-    _settings.database_url,
-    connect_args={"check_same_thread": False}
-    if _settings.database_url.startswith("sqlite")
-    else {},
+    _url,
+    connect_args={"check_same_thread": False} if _is_sqlite else {},
     pool_pre_ping=True,
+    # Serverless instances are short-lived; let the provider's pooler own connections.
+    **({"poolclass": NullPool} if ON_VERCEL and not _is_sqlite else {}),
 )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 

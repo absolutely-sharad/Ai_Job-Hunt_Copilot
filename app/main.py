@@ -27,7 +27,8 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 async def lifespan(app: FastAPI):
     settings = get_settings()
     configure_logging(settings.log_level)
-    Path(settings.chroma_path).mkdir(parents=True, exist_ok=True)
+    if settings.vector_store == "chroma":
+        Path(settings.chroma_path).mkdir(parents=True, exist_ok=True)
     init_db()
     log_event(
         logger,
