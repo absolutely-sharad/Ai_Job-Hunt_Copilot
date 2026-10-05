@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,7 +10,7 @@ from app.api.deps import get_copilot_service, require_api_key
 from app.core.errors import NotFoundError
 from app.db.models import RunRecord
 from app.db.session import get_session
-from app.schemas.tailor import TailorRequest, TailorResponse
+from app.schemas.tailor import RunSummary, TailorRequest, TailorResponse
 from app.services.copilot import CopilotService
 
 router = APIRouter(tags=["tailor"])
@@ -29,24 +29,25 @@ async def tailor(
     return service.run(request)
 
 
-@router.get("/runs", summary="List recent runs")
+@router.get("/runs", response_model=list[RunSummary], summary="List recent runs")
 async def list_runs(
-    limit: int = 20,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
     _: None = Depends(require_api_key),
-) -> list[dict]:
+) -> list[RunSummary]:
     records = session.scalars(
-        select(RunRecord).order_by(RunRecord.created_at.desc()).limit(min(limit, 100))
+        select(RunRecord).order_by(RunRecord.created_at.desc()).limit(limit).offset(offset)
     ).all()
     return [
-        {
-            "run_id": record.id,
-            "job_title": record.job_title,
-            "company": record.company,
-            "ats_score": record.ats_score,
-            "latency_ms": record.latency_ms,
-            "created_at": record.created_at,
-        }
+        RunSummary(
+            run_id=record.id,
+            job_title=record.job_title,
+            company=record.company,
+            ats_score=record.ats_score,
+            latency_ms=record.latency_ms,
+            created_at=record.created_at,
+        )
         for record in records
     ]
 
@@ -61,3 +62,22 @@ async def get_run(
     if record is None:
         raise NotFoundError(f"Run '{run_id}' not found.")
     return TailorResponse.model_validate(record.payload)
+
+
+@router.delete(
+    "/runs/{run_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    response_model=None,
+    summary="Delete a stored run (tracked applications keep their data)",
+)
+async def delete_run(
+    run_id: str,
+    session: Session = Depends(get_session),
+    _: None = Depends(require_api_key),
+) -> None:
+    record = session.get(RunRecord, run_id)
+    if record is None:
+        raise NotFoundError(f"Run '{run_id}' not found.")
+    session.delete(record)
+    session.commit()

@@ -1,4 +1,4 @@
-.PHONY: install dev test lint fmt eval docker run clean
+.PHONY: install dev test lint fmt eval docker run migrate migration clean
 
 install:
 	pip install -r requirements-dev.txt
@@ -25,6 +25,13 @@ eval:
 
 eval-live:
 	LLM_PROVIDER=gemini python eval/run_eval.py
+
+migrate:
+	alembic upgrade head
+
+# make migration m="add foo column"  -> autogenerates a revision from the models
+migration:
+	alembic revision --autogenerate -m "$(m)"
 
 docker:
 	docker build -t ai-jobhunt-copilot .

@@ -67,11 +67,15 @@ make dev                    # http://localhost:8000
 ```
 
 Open <http://localhost:8000> for the UI, or <http://localhost:8000/docs> for the OpenAPI console.
+The UI has four tabs: **Tailor** (paste a JD, inspect the evidence behind every bullet), **Corpus**
+(index and inspect your documents), **History** (reopen or delete past runs), and **Tracker**
+(follow each application from saved to offer). If the server sets `API_KEY`, click **API key** in
+the header (or just load the page — it prompts on the first `401`).
 
 **No API key?** Everything still runs:
 
 ```bash
-make test    # 24 tests, offline
+make test    # 47 tests, offline
 make eval    # evaluation harness, offline
 LLM_PROVIDER=fake make dev
 ```
@@ -91,10 +95,14 @@ docker compose up --build
 | `POST` | `/api/v1/profile/documents` | Index a document from raw text |
 | `POST` | `/api/v1/profile/documents/upload` | Index a PDF / DOCX / TXT / MD file |
 | `GET` | `/api/v1/profile/documents` | List indexed documents |
+| `GET` | `/api/v1/profile/documents/{id}` | A document plus the exact chunks (and citable IDs) indexed from it |
 | `DELETE` | `/api/v1/profile/documents/{id}` | Remove a document and its chunks |
 | `POST` | `/api/v1/tailor` | Run the full pipeline |
-| `GET` | `/api/v1/runs` | Recent runs |
+| `GET` | `/api/v1/runs?limit=&offset=` | Recent runs (`limit` 1–100) |
 | `GET` | `/api/v1/runs/{run_id}` | Fetch a stored run |
+| `DELETE` | `/api/v1/runs/{run_id}` | Delete a run (tracked applications keep their data) |
+| `POST` `GET` | `/api/v1/applications` | Track a job / list tracked jobs (`?status=`) |
+| `GET` `PATCH` `DELETE` | `/api/v1/applications/{id}` | Read, partially update (status, notes…), or remove one |
 | `GET` | `/healthz` · `/readyz` | Liveness · readiness (vector store + DB) |
 
 ```bash
@@ -152,13 +160,37 @@ GENERATION
 ## Testing
 
 ```bash
-make test    # 24 tests
+make test    # 47 tests
 make lint    # ruff
 ```
 
 Coverage includes chunking boundaries, MMR's relevance/diversity trade-off at different λ,
 retrieval ranking and deduplication, the critic dropping uncited bullets, retry-loop
 termination, and the full API contract including error codes.
+
+---
+
+## Data model & migrations
+
+| Table | Holds |
+|---|---|
+| `documents` | Metadata for each indexed document (title, kind, tags, chunk/char counts) |
+| `chunks` | Chunk text + embedding, used by the SQL vector store (`VECTOR_STORE=sql`; Chroma keeps its own) |
+| `runs` | Every tailoring run: the full response payload plus the JD it answered |
+| `applications` | The job tracker. `run_id` is a foreign key with `ON DELETE SET NULL`, and the ATS score is snapshotted, so pruning history never destroys tracker entries |
+
+The schema is owned by **Alembic** (`app/db/migrations`). The app runs `alembic upgrade head`
+on startup, so deploys need no manual step. A database created by an earlier version (tables
+present, no `alembic_version`) is stamped at the baseline and upgraded in place. On Postgres a
+session advisory lock serialises concurrent cold starts.
+
+```bash
+make migrate                       # alembic upgrade head
+make migration m="add foo column"  # autogenerate a revision after editing app/db/models.py
+```
+
+`tests/test_db.py` fails if a model changes without a matching migration. Timestamps are stored
+and returned as timezone-aware UTC on both SQLite and Postgres.
 
 ---
 
@@ -197,12 +229,12 @@ app/
 ├── agents/        LangGraph nodes, state, prompts, graph wiring
 ├── api/           routes, dependencies, middleware
 ├── core/          config, structured logging, error types
-├── db/            SQLAlchemy models and session management
+├── db/            SQLAlchemy models, session management, Alembic migrations
 ├── schemas/       Pydantic contracts (job, profile, tailor)
 └── services/      llm, embeddings, chunking, vectorstore, retrieval, ingestion, copilot
 eval/              labelled dataset + metrics harness
-frontend/          single-file UI served by the API
-tests/             24 tests, no API key required
+frontend/          static UI (index.html + app.js + styles.css, no build step) served by the API
+tests/             47 tests, no API key required
 ```
 
 ---
@@ -241,6 +273,6 @@ the `frontend/` UI, so a single Vercel project hosts everything.
 
 4. Deploy, then check `/healthz` and `/readyz`.
 
-Notes: the rate limiter is per-instance (in-memory); function `maxDuration` is 60s (raise on Pro if the
+Notes: schema migrations run automatically at startup (nothing to run by hand); the rate limiter is per-instance (in-memory); function `maxDuration` is 60s (raise on Pro if the
 pipeline needs longer). Without `DATABASE_URL` the app falls back to SQLite in `/tmp`, which resets on
 cold starts — fine for a demo only. For Docker/Render, `requirements-chroma.txt` adds embedded ChromaDB.

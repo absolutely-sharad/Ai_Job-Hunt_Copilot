@@ -2,8 +2,9 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import profile, tailor
+from app.api.v1 import applications, profile, tailor
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(profile.router)
 api_router.include_router(tailor.router)
+api_router.include_router(applications.router)

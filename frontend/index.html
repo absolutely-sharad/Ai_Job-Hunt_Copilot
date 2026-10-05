@@ -1,216 +1,218 @@
 <!doctype html>
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
 <title>AI Job-Hunt Copilot</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-  :root { color-scheme: light dark; }
-  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-  .card { border: 1px solid rgb(228 228 231); border-radius: 0.75rem; background: white; }
-  @media (prefers-color-scheme: dark) {
-    body { background: #09090b; color: #e4e4e7; }
-    .card { background: #18181b; border-color: #27272a; }
-    textarea, input, select { background: #09090b !important; color: #e4e4e7 !important;
-      border-color: #3f3f46 !important; }
-  }
-</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232b5fd9'/%3E%3Cpath d='M9 17l5 5 9-11' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="/static/styles.css" />
 </head>
-<body class="min-h-full bg-zinc-50 text-zinc-900">
-<div class="mx-auto max-w-5xl px-4 py-8">
+<body>
+<a class="skip" href="#main">Skip to content</a>
 
-  <header class="mb-8">
-    <h1 class="text-2xl font-semibold tracking-tight">AI Job-Hunt Copilot</h1>
-    <p class="mt-1 text-sm text-zinc-500">
-      RAG + agentic pipeline. Every generated bullet is traceable to evidence from your own
-      indexed experience.
-    </p>
-  </header>
-
-  <!-- Step 1: corpus -->
-  <section class="card mb-6 p-5">
-    <div class="flex items-center justify-between">
-      <h2 class="font-medium">1. Your experience corpus</h2>
-      <span id="doc-count" class="text-xs text-zinc-500">loading…</span>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">AI Job-Hunt Copilot<small>Every bullet traces back to your own evidence</small></div>
+    <nav class="nav" aria-label="Sections">
+      <a href="#/tailor" data-nav="tailor">Tailor</a>
+      <a href="#/corpus" data-nav="corpus">Corpus <span class="count" id="count-corpus">–</span></a>
+      <a href="#/history" data-nav="history">History <span class="count" id="count-history">–</span></a>
+      <a href="#/tracker" data-nav="tracker">Tracker <span class="count" id="count-tracker">–</span></a>
+    </nav>
+    <div class="topbar-tools">
+      <span id="provider-pill" class="badge" hidden></span>
+      <button type="button" class="btn sm" id="open-settings" aria-haspopup="dialog">API key</button>
     </div>
-    <div class="mt-4 grid gap-3 sm:grid-cols-2">
-      <input id="doc-title" placeholder="Title (e.g. Infonix Cloud)"
-             class="rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
-      <select id="doc-kind" class="rounded-lg border border-zinc-300 px-3 py-2 text-sm">
-        <option value="resume">Resume</option>
-        <option value="project" selected>Project</option>
-        <option value="experience">Experience</option>
-        <option value="education">Education</option>
-        <option value="note">Note</option>
-      </select>
-    </div>
-    <textarea id="doc-content" rows="5" placeholder="Paste the raw text — what you built, the stack, outcomes…"
-              class="mt-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"></textarea>
-    <div class="mt-3 flex flex-wrap items-center gap-3">
-      <button id="add-doc" class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white
-              hover:bg-zinc-700 disabled:opacity-50">Index document</button>
-      <label class="cursor-pointer text-sm text-zinc-600 underline">
-        or upload PDF/DOCX
-        <input id="file-input" type="file" accept=".pdf,.docx,.txt,.md" class="hidden" />
-      </label>
-    </div>
-    <ul id="doc-list" class="mt-4 space-y-2 text-sm"></ul>
-  </section>
+  </div>
+</header>
 
-  <!-- Step 2: JD -->
-  <section class="card mb-6 p-5">
-    <h2 class="font-medium">2. Target job description</h2>
-    <textarea id="jd" rows="7" placeholder="Paste the full job posting…"
-              class="mt-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"></textarea>
-    <div class="mt-3 flex items-center gap-3">
-      <select id="tone" class="rounded-lg border border-zinc-300 px-3 py-2 text-sm">
-        <option value="professional">Professional</option>
-        <option value="concise">Concise</option>
-        <option value="enthusiastic">Enthusiastic</option>
-      </select>
-      <button id="run" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white
-              hover:bg-blue-500 disabled:opacity-50">Tailor my application</button>
-      <span id="status" class="text-sm text-zinc-500"></span>
-    </div>
-  </section>
+<main id="main" class="container">
 
-  <div id="results" class="space-y-6"></div>
-</div>
-
-<script>
-const API = "/api/v1";
-const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
-  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-
-async function api(path, options = {}) {
-  const response = await fetch(API + path, {
-    headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body?.error?.message || `Request failed (${response.status})`);
-  }
-  return response.status === 204 ? null : response.json();
-}
-
-async function loadDocuments() {
-  try {
-    const documents = await api("/profile/documents");
-    $("doc-count").textContent = `${documents.length} document(s) indexed`;
-    $("doc-list").innerHTML = documents.map((d) => `
-      <li class="flex items-center justify-between rounded-lg bg-zinc-100 px-3 py-2 dark:bg-zinc-800">
-        <span><strong>${esc(d.title)}</strong>
-          <span class="text-zinc-500">· ${esc(d.kind)} · ${d.chunk_count} chunks</span></span>
-        <button data-id="${esc(d.id)}" class="del text-xs text-red-600 hover:underline">remove</button>
-      </li>`).join("");
-    document.querySelectorAll(".del").forEach((button) =>
-      button.addEventListener("click", async () => {
-        await api(`/profile/documents/${button.dataset.id}`, { method: "DELETE" });
-        loadDocuments();
-      }));
-  } catch (error) { $("doc-count").textContent = error.message; }
-}
-
-$("add-doc").addEventListener("click", async () => {
-  const content = $("doc-content").value.trim();
-  if (content.length < 20) return alert("Add at least a couple of sentences.");
-  $("add-doc").disabled = true;
-  try {
-    await api("/profile/documents", {
-      method: "POST",
-      body: JSON.stringify({
-        title: $("doc-title").value.trim() || "Untitled",
-        kind: $("doc-kind").value,
-        content,
-      }),
-    });
-    $("doc-content").value = ""; $("doc-title").value = "";
-    loadDocuments();
-  } catch (error) { alert(error.message); } finally { $("add-doc").disabled = false; }
-});
-
-$("file-input").addEventListener("change", async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-  const form = new FormData();
-  form.append("file", file);
-  form.append("kind", $("doc-kind").value);
-  try {
-    await api("/profile/documents/upload", { method: "POST", body: form });
-    loadDocuments();
-  } catch (error) { alert(error.message); }
-  event.target.value = "";
-});
-
-$("run").addEventListener("click", async () => {
-  const jd = $("jd").value.trim();
-  if (jd.length < 50) return alert("Paste the full job description.");
-  $("run").disabled = true;
-  $("status").textContent = "Parsing, retrieving, drafting, verifying…";
-  $("results").innerHTML = "";
-  try {
-    const result = await api("/tailor", {
-      method: "POST",
-      body: JSON.stringify({ job_description: jd, tone: $("tone").value }),
-    });
-    render(result);
-    $("status").textContent = `Done in ${result.latency_ms} ms`;
-  } catch (error) {
-    $("status").textContent = "";
-    $("results").innerHTML =
-      `<div class="card border-red-300 p-4 text-sm text-red-600">${esc(error.message)}</div>`;
-  } finally { $("run").disabled = false; }
-});
-
-function render(result) {
-  const score = result.match_report.ats_score;
-  const colour = score >= 70 ? "bg-green-600" : score >= 45 ? "bg-amber-500" : "bg-red-500";
-  const section = (title, inner) =>
-    `<section class="card p-5"><h2 class="mb-3 font-medium">${title}</h2>${inner}</section>`;
-
-  const evidenceTags = (ids) => ids
-    .map((id) => `<code class="rounded bg-zinc-200 px-1 text-[11px] dark:bg-zinc-700">${esc(id)}</code>`)
-    .join(" ");
-
-  $("results").innerHTML = [
-    section(`Match · ${esc(result.job.title)} at ${esc(result.job.company)}`, `
-      <div class="mb-3 h-2 w-full rounded bg-zinc-200 dark:bg-zinc-700">
-        <div class="h-2 rounded ${colour}" style="width:${score}%"></div>
+  <!-- ===================== Tailor ===================== -->
+  <section class="view" data-view="tailor" aria-labelledby="h-tailor">
+    <div class="view-head">
+      <div>
+        <h1 id="h-tailor">Tailor an application</h1>
+        <p>Paste a job posting. Bullets that can't cite your indexed experience are rejected.</p>
       </div>
-      <p class="text-sm"><strong>ATS score ${score}/100.</strong> ${esc(result.match_report.summary)}</p>
-      <div class="mt-3 grid gap-4 sm:grid-cols-2 text-sm">
-        <div><p class="font-medium text-green-700">Matched</p><ul class="mt-1 list-disc pl-5">
-          ${result.match_report.matched.map((m) => `<li>${esc(m.skill)}</li>`).join("")}</ul></div>
-        <div><p class="font-medium text-red-600">Gaps</p><ul class="mt-1 list-disc pl-5">
-          ${result.match_report.gaps.map((g) => `<li>${esc(g.skill)}</li>`).join("")}</ul></div>
-      </div>`),
+    </div>
 
-    section("Tailored resume bullets", `<ul class="space-y-3 text-sm">
-      ${result.resume_bullets.map((b) => `<li class="border-l-2 border-blue-500 pl-3">
-        <p>${esc(b.text)}</p>
-        <p class="mt-1 text-xs text-zinc-500">→ ${esc(b.target_requirement)} · ${evidenceTags(b.evidence_ids)}</p>
-      </li>`).join("")}</ul>`),
+    <div id="corpus-banner" class="banner" hidden>
+      Your corpus is empty, so there is nothing to ground a resume in.
+      <a href="#/corpus">Add your resume or projects first.</a>
+    </div>
 
-    result.cover_letter ? section("Cover letter",
-      `<pre class="whitespace-pre-wrap text-sm">${esc(result.cover_letter)}</pre>`) : "",
+    <form id="tailor-form" class="card stack" novalidate>
+      <label class="field">
+        <span>Job description</span>
+        <textarea id="jd" rows="9" placeholder="Paste the full job posting…" maxlength="20000"></textarea>
+      </label>
+      <div class="row spread">
+        <span class="small muted" id="jd-count" aria-live="polite">0 / 20,000 characters (min 50)</span>
+      </div>
+      <div class="row">
+        <label class="field min-160">
+          <span>Tone</span>
+          <select id="tone">
+            <option value="professional">Professional</option>
+            <option value="concise">Concise</option>
+            <option value="enthusiastic">Enthusiastic</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="opt-cover" checked /> Cover letter</label>
+        <label class="check"><input type="checkbox" id="opt-interview" checked /> Interview prep</label>
+        <span class="grow"></span>
+        <span id="run-status" class="small muted" role="status" aria-live="polite"></span>
+        <button type="submit" class="btn primary" id="run" disabled>Tailor my application</button>
+      </div>
+    </form>
 
-    result.interview_questions.length ? section("Interview prep", `<ul class="space-y-3 text-sm">
-      ${result.interview_questions.map((q) => `<li>
-        <p class="font-medium">${esc(q.question)}</p>
-        <p class="mt-1 text-zinc-600 dark:text-zinc-400">${esc(q.star_answer)}</p>
-      </li>`).join("")}</ul>`) : "",
+    <div id="results" class="results" aria-live="polite"></div>
+  </section>
 
-    result.grounding_violations.length ? section("Rejected by grounding critic",
-      `<ul class="list-disc pl-5 text-sm text-amber-700">
-        ${result.grounding_violations.map((v) => `<li>${esc(v.bullet)} — ${esc(v.reason)}</li>`).join("")}
-      </ul>`) : "",
-  ].join("");
-}
+  <!-- ===================== Corpus ===================== -->
+  <section class="view" data-view="corpus" aria-labelledby="h-corpus" hidden>
+    <div class="view-head">
+      <div>
+        <h1 id="h-corpus">Your experience corpus</h1>
+        <p>Everything the copilot is allowed to claim comes from here.</p>
+      </div>
+    </div>
 
-loadDocuments();
-</script>
+    <form id="doc-form" class="card stack" novalidate>
+      <h2>Add a document</h2>
+      <div class="grid-2">
+        <label class="field">
+          <span>Title</span>
+          <input type="text" id="doc-title" placeholder="e.g. Infonix Cloud" maxlength="200" />
+        </label>
+        <label class="field">
+          <span>Type</span>
+          <select id="doc-kind">
+            <option value="resume">Resume</option>
+            <option value="project" selected>Project</option>
+            <option value="experience">Experience</option>
+            <option value="education">Education</option>
+            <option value="note">Note</option>
+          </select>
+        </label>
+      </div>
+      <label class="field">
+        <span>Tags <small class="muted">(optional, comma-separated)</small></span>
+        <input type="text" id="doc-tags" placeholder="python, rag, fastapi" />
+      </label>
+      <label class="field">
+        <span>Content</span>
+        <textarea id="doc-content" rows="6" placeholder="Paste the raw text — what you built, the stack, measurable outcomes…"></textarea>
+      </label>
+      <div class="row">
+        <button type="submit" class="btn primary" id="add-doc">Index document</button>
+        <span class="muted small" id="doc-hint"></span>
+      </div>
+      <div class="dropzone" id="dropzone">
+        Drop a PDF, DOCX, TXT or MD file here, or
+        <button type="button" class="btn sm" id="pick-file">choose a file</button>
+        <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md" hidden />
+        <div class="small mt-4">Uses the type, title and tags above. Max 5&nbsp;MB.</div>
+      </div>
+    </form>
+
+    <div class="card">
+      <div class="card-head"><h2>Indexed documents</h2><span id="doc-summary" class="small muted"></span></div>
+      <ul id="doc-list" class="item-list"></ul>
+    </div>
+  </section>
+
+  <!-- ===================== History ===================== -->
+  <section class="view" data-view="history" aria-labelledby="h-history" hidden>
+    <div class="view-head">
+      <div>
+        <h1 id="h-history">Run history</h1>
+        <p>Every tailoring run is stored so you can reopen or audit it.</p>
+      </div>
+    </div>
+    <div class="card">
+      <ul id="run-list" class="item-list"></ul>
+      <div class="row end mt-12">
+        <button type="button" class="btn" id="more-runs" hidden>Load more</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Tracker ===================== -->
+  <section class="view" data-view="tracker" aria-labelledby="h-tracker" hidden>
+    <div class="view-head">
+      <div>
+        <h1 id="h-tracker">Application tracker</h1>
+        <p id="tracker-summary">Follow each job from saved to offer.</p>
+      </div>
+      <button type="button" class="btn primary" id="add-application">Add application</button>
+    </div>
+    <div id="board" class="board"></div>
+  </section>
+</main>
+
+<!-- ===================== Dialogs ===================== -->
+
+<dialog id="settings-dialog" aria-labelledby="settings-title">
+  <form method="dialog" id="settings-form" class="stack">
+    <h2 id="settings-title">API key</h2>
+    <p id="settings-message" class="banner error" hidden></p>
+    <p class="small muted">
+      Required only when the server is configured with <code>API_KEY</code>. It is sent as the
+      <code>X-API-Key</code> header and stored in this browser only.
+    </p>
+    <label class="field">
+      <span>Key</span>
+      <input type="password" id="api-key" autocomplete="off" spellcheck="false" />
+    </label>
+    <div class="row end">
+      <button type="button" class="btn" id="clear-key">Clear</button>
+      <button type="button" class="btn" id="cancel-settings">Cancel</button>
+      <button type="submit" class="btn primary" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="chunks-dialog" class="wide" aria-labelledby="chunks-title">
+  <div class="dialog-body stack">
+    <h2 id="chunks-title">Document</h2>
+    <p class="small muted" id="chunks-meta"></p>
+    <p class="small muted">These are the exact chunks the retriever searches. A citation like
+      <span class="mono">ev-…-0</span> points at one of them.</p>
+    <div id="chunks-body"></div>
+    <div class="row end"><button type="button" class="btn" data-close>Close</button></div>
+  </div>
+</dialog>
+
+<dialog id="app-dialog" aria-labelledby="app-dialog-title">
+  <form id="app-form" class="stack" novalidate>
+    <h2 id="app-dialog-title">Add application</h2>
+    <p id="app-error" class="banner error" hidden></p>
+    <div class="grid-2">
+      <label class="field"><span>Job title</span>
+        <input type="text" id="app-title" maxlength="200" required /></label>
+      <label class="field"><span>Company</span>
+        <input type="text" id="app-company" maxlength="200" /></label>
+    </div>
+    <label class="field"><span>Posting URL</span>
+      <input type="url" id="app-url" placeholder="https://…" maxlength="1000" /></label>
+    <label class="field"><span>Status</span>
+      <select id="app-status"></select></label>
+    <label class="field"><span>Notes</span>
+      <textarea id="app-notes" rows="4" placeholder="Contacts, deadlines, follow-ups…"></textarea></label>
+    <div class="row">
+      <button type="button" class="btn danger" id="app-delete" hidden>Delete</button>
+      <span class="grow"></span>
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn primary" id="app-save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toasts" role="status" aria-live="polite"></div>
+
+<script src="/static/app.js" defer></script>
 </body>
 </html>

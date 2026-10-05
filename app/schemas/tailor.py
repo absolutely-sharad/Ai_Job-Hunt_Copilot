@@ -64,3 +64,14 @@ class TailorResponse(BaseModel):
     evidence: list[EvidenceChunk] = Field(default_factory=list)
     grounding_violations: list[GroundingViolation] = Field(default_factory=list)
     latency_ms: int = 0
+
+
+class RunSummary(BaseModel):
+    """One row of run history; fetch the full run via GET /runs/{run_id}."""
+
+    run_id: str
+    job_title: str
+    company: str
+    ats_score: int
+    latency_ms: int
+    created_at: datetime

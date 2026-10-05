@@ -72,6 +72,9 @@ class IngestionService:
             created_at=created_at,
         )
 
+    def chunks(self, document_id: str) -> list[dict]:
+        return self.store.list_chunks(document_id)
+
     def delete(self, document_id: str) -> None:
         self.store.delete_document(document_id)
 

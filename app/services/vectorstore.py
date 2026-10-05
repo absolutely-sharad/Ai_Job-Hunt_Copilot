@@ -77,6 +77,19 @@ class VectorStore:
             )
         return hits
 
+    def list_chunks(self, document_id: str) -> list[dict[str, Any]]:
+        """Return every chunk of a document in reading order."""
+        result = self.collection.get(
+            where={"document_id": document_id}, include=["documents", "metadatas"]
+        )
+        chunks = [
+            {"id": chunk_id, "text": text, "metadata": dict(meta)}
+            for chunk_id, text, meta in zip(
+                result["ids"], result["documents"], result["metadatas"], strict=True
+            )
+        ]
+        return sorted(chunks, key=lambda chunk: int(chunk["metadata"].get("position", 0)))
+
     def delete_document(self, document_id: str) -> None:
         with _lock:
             self.collection.delete(where={"document_id": document_id})
@@ -101,13 +114,13 @@ class SqlVectorStore:
     """
 
     def __init__(self, settings: Settings | None = None):
-        from app.db.models import Base, ChunkRecord
-        from app.db.session import engine
+        from app.db.models import ChunkRecord
+        from app.db.session import engine, init_db
 
         self.settings = settings or get_settings()
         self._model = ChunkRecord
         self._engine = engine
-        Base.metadata.create_all(bind=engine, tables=[ChunkRecord.__table__])
+        init_db()  # idempotent; the schema is owned by Alembic, never by ad-hoc create_all
 
     def _session(self):
         from app.db.session import session_scope
@@ -163,6 +176,20 @@ class SqlVectorStore:
                 )
         scored.sort(key=lambda hit: hit["score"], reverse=True)
         return scored[:top_k]
+
+    def list_chunks(self, document_id: str) -> list[dict[str, Any]]:
+        """Return every chunk of a document in reading order."""
+        with self._session() as session:
+            rows = (
+                session.execute(select(self._model).where(self._model.document_id == document_id))
+                .scalars()
+                .all()
+            )
+            chunks = [
+                {"id": row.id, "text": row.text, "metadata": dict(row.chunk_metadata)}
+                for row in rows
+            ]
+        return sorted(chunks, key=lambda chunk: int(chunk["metadata"].get("position", 0)))
 
     def delete_document(self, document_id: str) -> None:
         with self._session() as session:

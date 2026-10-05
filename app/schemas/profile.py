@@ -36,6 +36,12 @@ class Chunk(BaseModel):
     position: int
 
 
+class DocumentDetail(DocumentOut):
+    """A document plus the exact chunks the retriever sees (and citations point to)."""
+
+    chunks: list[Chunk] = Field(default_factory=list)
+
+
 class EvidenceChunk(Chunk):
     """A chunk returned by retrieval, with its relevance score."""
 
