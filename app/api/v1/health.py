@@ -13,12 +13,16 @@ router = APIRouter(tags=["health"])
 @router.get("/healthz", summary="Liveness probe")
 async def healthz() -> dict:
     settings = get_settings()
-    return {
+    body = {
         "status": "ok",
         "app": settings.app_name,
         "environment": settings.environment,
         "llm_provider": settings.llm_provider,
+        "llm_ready": settings.llm_ready,
     }
+    if not settings.llm_ready:
+        body["llm_setup_hint"] = settings.llm_setup_hint
+    return body
 
 
 @router.get("/readyz", summary="Readiness probe")

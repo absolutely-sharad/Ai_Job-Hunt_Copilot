@@ -37,6 +37,14 @@ async def lifespan(app: FastAPI):
         environment=settings.environment,
         llm_provider=settings.llm_provider,
     )
+    if not settings.llm_ready:
+        log_event(
+            logger,
+            logging.WARNING,
+            "llm_not_configured",
+            detail="GOOGLE_API_KEY is not set, so tailoring and indexing will fail.",
+            hint=settings.llm_setup_hint,
+        )
     yield
     log_event(logger, logging.INFO, "shutdown")
 

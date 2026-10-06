@@ -632,6 +632,10 @@ textarea:focus {
   font-size: 14px;
 }
 
+#setup-banner {
+  margin-bottom: 20px;
+}
+
 .banner.error {
   border-left-color: var(--bad);
   background: var(--bad-soft);

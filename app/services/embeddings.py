@@ -24,7 +24,7 @@ class GeminiEmbedder(BaseEmbedder):
         from google.genai import types
 
         if not settings.google_api_key:
-            raise ProviderError("GOOGLE_API_KEY is not configured.")
+            raise ProviderError(f"GOOGLE_API_KEY is not configured. {settings.llm_setup_hint}")
         self.settings = settings
         self.dimensions = settings.embedding_dimensions
         self.client = genai.Client(

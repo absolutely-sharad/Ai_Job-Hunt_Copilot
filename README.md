@@ -72,10 +72,16 @@ The UI has four tabs: **Tailor** (paste a JD, inspect the evidence behind every 
 (follow each application from saved to offer). If the server sets `API_KEY`, click **API key** in
 the header (or just load the page — it prompts on the first `401`).
 
+**Seeing `GOOGLE_API_KEY is not configured`?** The server has no Gemini key. The UI shows a red banner
+(and `/healthz` reports `llm_ready: false`) naming exactly which `.env` files it looked for. Create `.env`
+in the project folder (`cp .env.example .env`), set `GOOGLE_API_KEY=<your key>`, and **restart** the server;
+settings are read once at startup. The project's own `.env` is found wherever you start the server from.
+Real environment variables (including an empty `GOOGLE_API_KEY=` exported in your shell) override `.env`.
+
 **No API key?** Everything still runs:
 
 ```bash
-make test    # 52 tests, offline
+make test    # 60 tests, offline
 make eval    # evaluation harness, offline
 LLM_PROVIDER=fake make dev
 ```
@@ -160,7 +166,7 @@ GENERATION
 ## Testing
 
 ```bash
-make test    # 52 tests
+make test    # 60 tests
 make lint    # ruff
 ```
 
@@ -234,7 +240,7 @@ app/
 └── services/      llm, embeddings, chunking, vectorstore, retrieval, ingestion, copilot
 eval/              labelled dataset + metrics harness
 frontend/          static UI (index.html + app.js + styles.css, no build step) served by the API
-tests/             52 tests, no API key required
+tests/             60 tests, no API key required
 ```
 
 ---

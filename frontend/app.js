@@ -276,9 +276,27 @@ async function loadHealth() {
       ? "Running on the offline fake LLM — output is synthetic. Set LLM_PROVIDER=gemini for real results."
       : `Generating with ${health.llm_provider}`;
     pill.hidden = false;
+    renderSetupBanner(health);
   } catch {
     /* the pill is a nicety; ignore failures */
   }
+}
+
+/** A missing Gemini key is a setup problem, so say so up front instead of failing on first use. */
+function renderSetupBanner(health) {
+  const banner = $("#setup-banner");
+  banner.hidden = health.llm_ready !== false;
+  if (banner.hidden) return;
+  const pill = $("#provider-pill");
+  pill.textContent = "LLM: not configured";
+  pill.className = "badge bad";
+  setHtml(
+    banner,
+    html`<strong>Gemini isn't set up: the server has no GOOGLE_API_KEY.</strong>
+      ${health.llm_setup_hint || ""}
+      Get a free key at
+      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com/apikey</a>.`,
+  );
 }
 
 const reloadAll = () => Promise.all([loadDocuments(), loadRuns(), loadApplications()]);

@@ -41,7 +41,7 @@ class GeminiLLM(BaseLLM):
         from google.genai import types
 
         if not settings.google_api_key:
-            raise ProviderError("GOOGLE_API_KEY is not configured.")
+            raise ProviderError(f"GOOGLE_API_KEY is not configured. {settings.llm_setup_hint}")
         self.settings = settings
         # Without an explicit timeout a congested model can hold a request open for minutes.
         self.client = genai.Client(

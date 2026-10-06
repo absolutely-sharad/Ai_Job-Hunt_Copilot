@@ -2,6 +2,7 @@
 
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
@@ -10,11 +11,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Vercel functions run on a read-only filesystem with only /tmp writable (and ephemeral).
 ON_VERCEL = bool(os.environ.get("VERCEL"))
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# The project's own .env is always found, wherever the server is started from; a .env in the
+# current directory (listed last) overrides it. Real environment variables beat both.
+ENV_FILES = (PROJECT_ROOT / ".env", Path(".env"))
+
 
 class Settings(BaseSettings):
     """Runtime settings. Override any field via environment variable."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=ENV_FILES, env_file_encoding="utf-8", extra="ignore")
 
     # --- App ---
     app_name: str = "AI Job-Hunt Copilot"
@@ -60,6 +66,24 @@ class Settings(BaseSettings):
     # --- Rate limiting ---
     rate_limit_requests: int = 60
     rate_limit_window_seconds: int = 60
+
+    @property
+    def llm_ready(self) -> bool:
+        """False when the configured provider cannot work yet (Gemini without a key)."""
+        return self.llm_provider == "fake" or bool(self.google_api_key)
+
+    @property
+    def llm_setup_hint(self) -> str:
+        """How to fix a missing key. Includes file paths only in local mode: /healthz is public."""
+        fix = (
+            "Put GOOGLE_API_KEY=<your key> in a .env file and restart the server, "
+            "or set LLM_PROVIDER=fake for demo mode."
+        )
+        if self.environment != "local":
+            return "Set the GOOGLE_API_KEY environment variable for this deployment and redeploy."
+        looked = dict.fromkeys(Path(env_file).resolve() for env_file in ENV_FILES)  # de-duplicated
+        found = ", ".join(f"{p} ({'found' if p.exists() else 'not found'})" for p in looked)
+        return f"{fix} The server looked for: {found}."
 
     @property
     def sqlalchemy_url(self) -> str:
