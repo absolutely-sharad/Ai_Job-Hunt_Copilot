@@ -90,6 +90,11 @@ a:hover {
   display: none !important;
 }
 
+/* Headings are focused programmatically on tab change for screen readers; they aren't controls. */
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
