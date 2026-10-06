@@ -21,12 +21,16 @@ class GeminiEmbedder(BaseEmbedder):
 
     def __init__(self, settings: Settings):
         from google import genai
+        from google.genai import types
 
         if not settings.google_api_key:
             raise ProviderError("GOOGLE_API_KEY is not configured.")
         self.settings = settings
         self.dimensions = settings.embedding_dimensions
-        self.client = genai.Client(api_key=settings.google_api_key)
+        self.client = genai.Client(
+            api_key=settings.google_api_key,
+            http_options=types.HttpOptions(timeout=int(settings.llm_timeout_seconds * 1000)),
+        )
 
     def embed(self, texts: list[str], *, is_query: bool = False) -> list[list[float]]:
         from google.genai import types

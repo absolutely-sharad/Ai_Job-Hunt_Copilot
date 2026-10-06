@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     # --- Providers ---
     llm_provider: Literal["gemini", "fake"] = "gemini"
     google_api_key: str | None = None
-    llm_model: str = "gemini-2.0-flash"
-    embedding_model: str = "text-embedding-004"
+    llm_model: str = "gemini-flash-lite-latest"
+    embedding_model: str = "gemini-embedding-001"
     embedding_dimensions: int = 768
     llm_temperature: float = 0.2
     llm_max_output_tokens: int = 4096

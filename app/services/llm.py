@@ -17,6 +17,9 @@ from app.core.logging import get_logger, log_event
 logger = get_logger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
+# HTTP statuses that mean the request itself is wrong, as opposed to a transient 429/5xx.
+PERMANENT_STATUS_CODES = frozenset({400, 401, 403, 404})
+
 
 class BaseLLM:
     """Interface every LLM provider implements."""
@@ -35,11 +38,16 @@ class GeminiLLM(BaseLLM):
 
     def __init__(self, settings: Settings):
         from google import genai
+        from google.genai import types
 
         if not settings.google_api_key:
             raise ProviderError("GOOGLE_API_KEY is not configured.")
         self.settings = settings
-        self.client = genai.Client(api_key=settings.google_api_key)
+        # Without an explicit timeout a congested model can hold a request open for minutes.
+        self.client = genai.Client(
+            api_key=settings.google_api_key,
+            http_options=types.HttpOptions(timeout=int(settings.llm_timeout_seconds * 1000)),
+        )
 
     def _config(self, system: str, temperature: float | None, schema: type[T] | None):
         from google.genai import types
@@ -75,6 +83,8 @@ class GeminiLLM(BaseLLM):
                 log_event(
                     logger, logging.WARNING, "llm_call_failed", attempt=attempt, error=str(exc)
                 )
+                if getattr(exc, "code", None) in PERMANENT_STATUS_CODES:
+                    break  # bad key, retired model, malformed request: retrying cannot help
                 if attempt < self.settings.llm_max_retries:
                     time.sleep(min(2**attempt, 8))
         raise ProviderError(f"LLM call failed after retries: {last_error}")

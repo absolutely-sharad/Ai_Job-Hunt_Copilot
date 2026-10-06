@@ -75,7 +75,7 @@ the header (or just load the page — it prompts on the first `401`).
 **No API key?** Everything still runs:
 
 ```bash
-make test    # 47 tests, offline
+make test    # 52 tests, offline
 make eval    # evaluation harness, offline
 LLM_PROVIDER=fake make dev
 ```
@@ -160,7 +160,7 @@ GENERATION
 ## Testing
 
 ```bash
-make test    # 47 tests
+make test    # 52 tests
 make lint    # ruff
 ```
 
@@ -234,7 +234,7 @@ app/
 └── services/      llm, embeddings, chunking, vectorstore, retrieval, ingestion, copilot
 eval/              labelled dataset + metrics harness
 frontend/          static UI (index.html + app.js + styles.css, no build step) served by the API
-tests/             47 tests, no API key required
+tests/             52 tests, no API key required
 ```
 
 ---
